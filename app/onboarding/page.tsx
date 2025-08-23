@@ -52,14 +52,6 @@ export default function OnboardingPage() {
               <a className="text-[#0d141c] text-sm font-medium leading-normal" href="#">Pricing</a>
               <a className="text-[#0d141c] text-sm font-medium leading-normal" href="#">Support</a>
             </div>
-            <div className="flex gap-2">
-              <Button className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-[#0d78f2] text-slate-50 text-sm font-bold leading-normal tracking-[0.015em] hover:bg-[#0d78f2]/90">
-                <span className="truncate">Get Started</span>
-              </Button>
-              <Button variant="outline" className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-[#e7edf4] text-[#0d141c] text-sm font-bold leading-normal tracking-[0.015em] border-[#e7edf4] hover:bg-[#e7edf4]/90">
-                <span className="truncate">Log In</span>
-              </Button>
-            </div>
           </div>
         </header>
         
