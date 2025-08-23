@@ -5,6 +5,7 @@ import { ethers } from 'ethers'
 import { supabase } from '../lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import type { BrowserProvider, JsonRpcSigner } from 'ethers'
+import { ensureAllowance } from '../lib/allowance'
 
 interface Tier {
   id: number
@@ -33,7 +34,14 @@ const TIERS: Tier[] = [
   { id: 3, name: 'Premium', monthlyFee: 150, payoutAmount: 2400, description: 'Full coverage' }
 ]
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x...'
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as string
+const TOKEN_ADDRESS = process.env.NEXT_PUBLIC_PAYMENT_TOKEN_ADDRESS as string
+const REQUIRED_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || '0')
+const REQUIRED_RPC_URL = process.env.NEXT_PUBLIC_BLOCKDAG_RPC_URL as string
+
+function toHexChainId(chainId: number) {
+  return '0x' + chainId.toString(16)
+}
 
 export default function TierSelection({ walletData, onComplete }: TierSelectionProps) {
   const [selectedTier, setSelectedTier] = useState<Tier | null>(null)
@@ -47,7 +55,35 @@ export default function TierSelection({ walletData, onComplete }: TierSelectionP
 
     setIsLoading(true)
     try {
-      const { signer, chainId, address, user } = walletData
+      const { signer, address } = walletData
+      let currentSigner = signer
+
+      // Ensure wallet is on required chain; attempt switch if not
+      const provider = signer.provider
+      const network = await provider?.getNetwork()
+      if (!CONTRACT_ADDRESS) throw new Error('Missing NEXT_PUBLIC_CONTRACT_ADDRESS')
+      if (!REQUIRED_CHAIN_ID) throw new Error('Missing NEXT_PUBLIC_CHAIN_ID')
+      if ((network?.chainId as bigint | undefined) !== BigInt(REQUIRED_CHAIN_ID)) {
+        try {
+          await (provider as any).send('wallet_switchEthereumChain', [{ chainId: toHexChainId(REQUIRED_CHAIN_ID) }])
+        } catch (err: any) {
+          // If chain not added, try to add it (requires RPC URL)
+          if (err?.code === 4902 && REQUIRED_RPC_URL) {
+            await (provider as any).send('wallet_addEthereumChain', [{
+              chainId: toHexChainId(REQUIRED_CHAIN_ID),
+              chainName: 'BlockDAG',
+              rpcUrls: [REQUIRED_RPC_URL],
+              nativeCurrency: { name: 'BDG', symbol: 'BDG', decimals: 18 },
+            }])
+          } else {
+            throw new Error(`Please switch your wallet to chain ${REQUIRED_CHAIN_ID}`)
+          }
+        }
+      }
+      // Reacquire provider/signer after a network change to avoid ethers "network changed" error
+      const finalProvider = new ethers.BrowserProvider((window as any).ethereum)
+      const finalNet = await finalProvider.getNetwork()
+      currentSigner = await finalProvider.getSigner()
 
       // Get auth token to authenticate API calls
       const { data: { session } } = await supabase.auth.getSession()
@@ -67,10 +103,21 @@ export default function TierSelection({ walletData, onComplete }: TierSelectionP
       console.log('📝 Got nonce:', nonce)
 
       // EIP-712 typed data
+      // Resolve token decimals to scale human fee correctly
+      const token = new ethers.Contract(TOKEN_ADDRESS, ['function decimals() view returns (uint8)'], signer)
+      const decimalsEnv = process.env.NEXT_PUBLIC_PAYMENT_TOKEN_DECIMALS
+      const decimals: number = decimalsEnv ? Number(decimalsEnv) : await token.decimals()
+
+      // UX: Ensure allowance first (one-click approve if needed)
+      const approval = await ensureAllowance({ monthlyFee: tier.monthlyFee, ownerAddress: address })
+      if (approval?.txHash) {
+        console.log('✅ Approval tx:', approval.txHash)
+      }
+
       const domain = {
         name: "MicroInsurancect Tier",
         version: "1",
-        chainId: Number(chainId),
+        chainId: Number(finalNet?.chainId ?? REQUIRED_CHAIN_ID),
         verifyingContract: CONTRACT_ADDRESS
       }
 
@@ -88,7 +135,7 @@ export default function TierSelection({ walletData, onComplete }: TierSelectionP
       const value = {
         user: address,
         tier: tier.id,
-        amount: ethers.parseUnits(tier.monthlyFee.toString(), 18),
+        amount: ethers.parseUnits(tier.monthlyFee.toString(), decimals),
         period: 30 * 24 * 60 * 60, // 30 days in seconds
         validUntil: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60), // 1 year from now
         nonce: nonce
@@ -96,7 +143,7 @@ export default function TierSelection({ walletData, onComplete }: TierSelectionP
 
       console.log('📋 Signing typed data:', { domain, types, value })
 
-      const signature = await signer.signTypedData(domain, types, value)
+      const signature = await currentSigner.signTypedData(domain, types, value)
       console.log('✍️ Signature created:', signature.slice(0, 20) + '...')
       
       // Send to backend with auth token

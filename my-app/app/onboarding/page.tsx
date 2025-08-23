@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { ethers } from 'ethers'
 import { supabase, testConnectionWithAuth } from '../../lib/supabase'
+import { ensureAllowance } from '../../lib/allowance'
 
 export default function OnboardingPage() {
   // State management
@@ -129,9 +130,37 @@ export default function OnboardingPage() {
 
     setIsLoading(true)
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum)
-      const signer = await provider.getSigner()
-      const network = await provider.getNetwork()
+      let provider = new ethers.BrowserProvider(window.ethereum)
+      let signer = await provider.getSigner()
+      let network = await provider.getNetwork()
+
+      const REQUIRED_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || '0')
+      const REQUIRED_RPC_URL = process.env.NEXT_PUBLIC_BLOCKDAG_RPC_URL as string | undefined
+      const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as string
+      const toHex = (n: number) => '0x' + n.toString(16)
+
+      if (!CONTRACT_ADDRESS) throw new Error('Missing NEXT_PUBLIC_CONTRACT_ADDRESS')
+      if (!REQUIRED_CHAIN_ID) throw new Error('Missing NEXT_PUBLIC_CHAIN_ID')
+      if (network.chainId !== BigInt(REQUIRED_CHAIN_ID)) {
+        try {
+          await provider.send('wallet_switchEthereumChain', [{ chainId: toHex(REQUIRED_CHAIN_ID) }])
+        } catch (err: any) {
+          if (err?.code === 4902 && REQUIRED_RPC_URL) {
+            await provider.send('wallet_addEthereumChain', [{
+              chainId: toHex(REQUIRED_CHAIN_ID),
+              chainName: 'BlockDAG',
+              rpcUrls: [REQUIRED_RPC_URL],
+              nativeCurrency: { name: 'BDG', symbol: 'BDG', decimals: 18 },
+            }])
+          } else {
+            throw new Error(`Please switch your wallet to chain ${REQUIRED_CHAIN_ID}`)
+          }
+        }
+        // Recreate provider/signer after chain change to avoid ethers network-changed error
+        provider = new ethers.BrowserProvider(window.ethereum)
+        signer = await provider.getSigner()
+        network = await provider.getNetwork()
+      }
 
       // Get current nonce
       const { data: { session } } = await supabase.auth.getSession()
@@ -141,11 +170,22 @@ export default function OnboardingPage() {
       const { nonce } = await nonceResponse.json()
 
       // Create EIP-712 signature
+      // Scale amount by actual token decimals
+      const token = new ethers.Contract(process.env.NEXT_PUBLIC_PAYMENT_TOKEN_ADDRESS as string, ['function decimals() view returns (uint8)'], signer)
+      const decimalsEnv = process.env.NEXT_PUBLIC_PAYMENT_TOKEN_DECIMALS
+      const decimals: number = decimalsEnv ? Number(decimalsEnv) : await token.decimals()
+
+      // UX: Ensure allowance first (one-click approve if needed)
+      const approval = await ensureAllowance({ monthlyFee: tier.monthlyFee, ownerAddress: walletAddress })
+      if (approval?.txHash) {
+        console.log('✅ Approval tx:', approval.txHash)
+      }
+
       const domain = {
         name: "MicroInsurance",
         version: "1",
         chainId: Number(network.chainId),
-        verifyingContract: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x1234567890123456789012345678901234567890'
+        verifyingContract: CONTRACT_ADDRESS
       }
 
       const types = {
@@ -162,7 +202,7 @@ export default function OnboardingPage() {
       const value = {
         user: walletAddress,
         tier: tier.id,
-        amount: ethers.parseUnits(tier.monthlyFee.toString(), 18).toString(),
+        amount: ethers.parseUnits(tier.monthlyFee.toString(), decimals).toString(),
         period: 30 * 24 * 60 * 60,
         validUntil: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60),
         nonce: nonce
