@@ -1,7 +1,29 @@
+import { loadEnvConfig } from '@next/env'
+import * as path from 'path'
+
+// Load Next.js environment configuration
+const projectDir = path.join(__dirname, '..')
+loadEnvConfig(projectDir)
+
 import { ethers } from 'ethers'
-import { supabase } from '../lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 async function testRelayerPayment() {
+  // Debug: Check if environment variables are loaded
+  console.log('Environment check:')
+  console.log('BLOCKDAG_RPC_URL:', process.env.BLOCKDAG_RPC_URL ? '✅ Set' : '❌ Missing')
+  console.log('PRIVATE_KEY:', process.env.PRIVATE_KEY ? '✅ Set' : '❌ Missing')
+  console.log('CONTRACT_ADDRESS:', process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ? '✅ Set' : '❌ Missing')
+  console.log('SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? '✅ Set' : '❌ Missing')
+  console.log('SUPABASE_KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? '✅ Set' : '❌ Missing')
+  console.log('---')
+
+  // Initialize Supabase client after env vars are loaded
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+
   // Connect to BlockDAG
   const provider = new ethers.JsonRpcProvider(process.env.BLOCKDAG_RPC_URL)
   const relayerWallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider)
@@ -58,4 +80,6 @@ async function testRelayerPayment() {
 }
 
 // Run the test
-testRelayerPayment().then(() => console.log('Relayer test complete'))
+testRelayerPayment()
+  .then(() => console.log('Relayer test complete'))
+  .catch(error => console.error('Script failed:', error))
