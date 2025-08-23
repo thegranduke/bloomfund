@@ -1,41 +1,47 @@
-import type { Metadata } from "next";
-import { Geist } from "next/font/google";
-import { ThemeProvider } from "next-themes";
-import "./globals.css";
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import Link from 'next/link'
+import './globals.css'
 
-const defaultUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "http://localhost:3000";
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  metadataBase: new URL(defaultUrl),
-  title: "Next.js and Supabase Starter Kit",
-  description: "The fastest way to build apps with Next.js and Supabase",
-};
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  display: "swap",
-  subsets: ["latin"],
-});
+  title: 'Micro Insurance Platform',
+  description: 'Decentralized micro-insurance on BlockDAG',
+}
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: React.ReactNode
+}) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.className} antialiased`}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
+    <html lang="en">
+      <body className={inter.className}>
+        <nav className="bg-white shadow-sm border-b">
+          <div className="container mx-auto px-4">
+            <div className="flex items-center justify-between h-16">
+              <Link href="/" className="text-xl font-bold text-gray-900">
+                Micro Insurance
+              </Link>
+              <div className="flex space-x-4">
+                <Link href="/" className="text-gray-600 hover:text-gray-900">
+                  Home
+                </Link>
+                <Link href="/onboarding" className="text-blue-600 hover:text-blue-800 font-medium">
+                  Get Started
+                </Link>
+                <Link href="/test-auth-wallet" className="text-gray-600 hover:text-gray-900">
+                  Test
+                </Link>
+              </div>
+            </div>
+          </div>
+        </nav>
+        <main className="min-h-screen bg-gray-50">
           {children}
-        </ThemeProvider>
+        </main>
       </body>
     </html>
-  );
+  )
 }
