@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ethers } from 'ethers'
 import { supabase } from '../lib/supabase'
 import type { User } from '@supabase/supabase-js'
@@ -24,6 +24,7 @@ interface WalletData {
 
 interface TierSelectionProps {
   walletData: WalletData | null
+  currentTier?: { id: number } | null  // Current tier from database
   onComplete?: () => void  // Add callback
 }
 
@@ -35,9 +36,19 @@ const TIERS: Tier[] = [
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x...'
 
-export default function TierSelection({ walletData, onComplete }: TierSelectionProps) {
+export default function TierSelection({ walletData, currentTier, onComplete }: TierSelectionProps) {
   const [selectedTier, setSelectedTier] = useState<Tier | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+
+  // Set selected tier from database on component mount or when currentTier changes
+  useEffect(() => {
+    if (currentTier?.id) {
+      const tier = TIERS.find(t => t.id === currentTier.id)
+      if (tier) {
+        setSelectedTier(tier)
+      }
+    }
+  }, [currentTier])
 
   async function signAuthorization(tier: Tier) {
     if (!walletData || !walletData.user) {
@@ -142,15 +153,23 @@ export default function TierSelection({ walletData, onComplete }: TierSelectionP
       <h2 className="text-xl font-bold mb-4">Select Insurance Tier</h2>
       
       {selectedTier ? (
-        <div className="text-green-600 bg-green-50 p-4 rounded">
-          <p className="font-bold">✅ Registered for {selectedTier.name} tier</p>
+        <div className="text-green-600 bg-green-50 p-4 rounded mb-4">
+          <p className="font-bold">✅ Currently registered for {selectedTier.name} tier</p>
           <p>Monthly fee: {selectedTier.monthlyFee} BDG</p>
           <p>Payout amount: {selectedTier.payoutAmount} Rands</p>
           <p className="text-sm text-green-700 mt-2">
             Signature has been stored in the database
           </p>
+          <button
+            onClick={() => setSelectedTier(null)}
+            className="mt-3 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+          >
+            Change Tier
+          </button>
         </div>
-      ) : (
+      ) : null}
+      
+      {!selectedTier && (
         <div className="grid md:grid-cols-3 gap-4">
           {TIERS.map((tier) => (
             <div key={tier.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">

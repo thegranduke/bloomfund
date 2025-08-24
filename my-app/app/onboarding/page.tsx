@@ -4,6 +4,12 @@ import { useState, useEffect } from 'react'
 import { ethers } from 'ethers'
 import { supabase, testConnectionWithAuth } from '../../lib/supabase'
 
+const tiers = [
+  { id: 1, name: 'Basic', monthlyFee: 0.05, payoutAmount: 800 },
+  { id: 2, name: 'Standard', monthlyFee: 0.1, payoutAmount: 1600 },
+  { id: 3, name: 'Premium', monthlyFee: 0.15, payoutAmount: 2400 }
+]
+
 export default function OnboardingPage() {
   // State management
   const [user, setUser] = useState<any>(null)
@@ -48,7 +54,10 @@ export default function OnboardingPage() {
           setWalletAddress(data.wallet_address)
         }
         if (data?.tier) {
-          setSelectedTier({ id: data.tier })
+          const tierData = tiers.find(t => t.id === data.tier)
+          if (tierData) {
+            setSelectedTier(tierData)
+          }
         }
       }
     } catch (error) {
@@ -86,14 +95,14 @@ export default function OnboardingPage() {
       return
     }
 
-    if (!window.ethereum) {
+    if (!(window as any).ethereum) {
       alert('Please install MetaMask')
       return
     }
 
     setIsLoading(true)
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum)
+      const provider = new ethers.BrowserProvider((window as any).ethereum)
       await provider.send("eth_requestAccounts", [])
       const signer = await provider.getSigner()
       const address = await signer.getAddress()
@@ -129,7 +138,7 @@ export default function OnboardingPage() {
 
     setIsLoading(true)
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum)
+      const provider = new ethers.BrowserProvider((window as any).ethereum)
       const signer = await provider.getSigner()
       const network = await provider.getNetwork()
 
@@ -201,11 +210,7 @@ export default function OnboardingPage() {
     }
   }
 
-  const tiers = [
-    { id: 1, name: 'Basic', monthlyFee: 0.05, payoutAmount: 800 },
-    { id: 2, name: 'Standard', monthlyFee: 0.1, payoutAmount: 1600 },
-    { id: 3, name: 'Premium', monthlyFee: 0.15, payoutAmount: 2400 }
-  ]
+
 
   return (
     <div className="container mx-auto p-8 max-w-4xl">
@@ -219,9 +224,9 @@ export default function OnboardingPage() {
       </div>
 
       {/* Step 1: Sign In */}
-      <div className="mb-8 p-6 border rounded-lg">
-        <h2 className="text-xl font-bold mb-4">Step 1: Sign In</h2>
-        {!user ? (
+      {!user ? (
+        <div className="mb-8 p-6 border rounded-lg">
+          <h2 className="text-xl font-bold mb-4">Step 1: Sign In</h2>
           <button 
             onClick={signInWithEmail}
             disabled={isLoading}
@@ -229,10 +234,13 @@ export default function OnboardingPage() {
           >
             {isLoading ? 'Sending...' : 'Sign In with Email'}
           </button>
-        ) : (
-          <p className="text-green-600">✅ Signed in as: {user.email}</p>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="mb-8 p-6 border rounded-lg bg-green-50">
+          <h2 className="text-xl font-bold mb-4 text-green-800">✅ Step 1: Signed In</h2>
+          <p className="text-green-700">Signed in as: {user.email}</p>
+        </div>
+      )}
 
       {/* Step 2: Connect Wallet */}
       {user && (
@@ -257,7 +265,17 @@ export default function OnboardingPage() {
         <div className="mb-8 p-6 border rounded-lg">
           <h2 className="text-xl font-bold mb-4">Step 3: Select Insurance Tier</h2>
           {selectedTier ? (
-            <p className="text-green-600">✅ Selected: {selectedTier.name} tier</p>
+            <div className="text-green-600 bg-green-50 p-4 rounded">
+              <p className="font-bold">✅ Currently registered for {selectedTier.name} tier</p>
+              <p>Monthly fee: {selectedTier.monthlyFee} BDG</p>
+              <p>Payout amount: {selectedTier.payoutAmount} Rands</p>
+              <button
+                onClick={() => setSelectedTier(null)}
+                className="mt-3 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+              >
+                Change Tier
+              </button>
+            </div>
           ) : (
             <div className="grid md:grid-cols-3 gap-4">
               {tiers.map((tier) => (

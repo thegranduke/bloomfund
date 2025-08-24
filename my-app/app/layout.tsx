@@ -31,6 +31,12 @@ export default function RootLayout({
                 <Link href="/onboarding" className="text-blue-600 hover:text-blue-800 font-medium">
                   Get Started
                 </Link>
+                <Link href="/claims" className="text-green-600 hover:text-green-800 font-medium">
+                  Claims
+                </Link>
+                <Link href="/admin" className="text-purple-600 hover:text-purple-800 font-medium">
+                  Admin
+                </Link>
                 <Link href="/test-auth-wallet" className="text-gray-600 hover:text-gray-900">
                   Test
                 </Link>
