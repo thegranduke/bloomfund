@@ -202,9 +202,9 @@ export default function OnboardingPage() {
   }
 
   const tiers = [
-    { id: 1, name: 'Basic', monthlyFee: 50, payoutAmount: 800 },
-    { id: 2, name: 'Standard', monthlyFee: 100, payoutAmount: 1600 },
-    { id: 3, name: 'Premium', monthlyFee: 150, payoutAmount: 2400 }
+    { id: 1, name: 'Basic', monthlyFee: 0.05, payoutAmount: 800 },
+    { id: 2, name: 'Standard', monthlyFee: 0.1, payoutAmount: 1600 },
+    { id: 3, name: 'Premium', monthlyFee: 0.15, payoutAmount: 2400 }
   ]
 
   return (

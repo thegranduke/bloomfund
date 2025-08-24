@@ -28,9 +28,9 @@ interface TierSelectionProps {
 }
 
 const TIERS: Tier[] = [
-  { id: 1, name: 'Basic', monthlyFee: 50, payoutAmount: 800, description: 'Basic coverage' },
-  { id: 2, name: 'Standard', monthlyFee: 100, payoutAmount: 1600, description: 'Enhanced coverage' },
-  { id: 3, name: 'Premium', monthlyFee: 150, payoutAmount: 2400, description: 'Full coverage' }
+  { id: 1, name: 'Basic', monthlyFee: 0.05, payoutAmount: 800, description: 'Basic coverage' },
+  { id: 2, name: 'Standard', monthlyFee: 0.1, payoutAmount: 1600, description: 'Enhanced coverage' },
+  { id: 3, name: 'Premium', monthlyFee: 0.15, payoutAmount: 2400, description: 'Full coverage' }
 ]
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x...'
