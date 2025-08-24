@@ -49,8 +49,7 @@ export async function POST(request: NextRequest) {
         nonce: typedData.value.nonce,
         is_active: true
       }, {
-        onConflict: 'auth_user_id',
-        returning: 'minimal'
+        onConflict: 'auth_user_id'
       })
       .select('id')
       .single()
