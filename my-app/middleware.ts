@@ -14,8 +14,9 @@ export const config = {
      * - favicon.ico (favicon file)
      * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
      * - api/run-contract-test (admin API)
+     * - api/admin/* (admin API routes)
      * Feel free to modify this pattern to include more paths.
      */
-    "/((?!_next/static|_next/image|favicon.ico|api/run-contract-test|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/run-contract-test|api/admin|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

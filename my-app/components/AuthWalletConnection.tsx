@@ -103,7 +103,7 @@ export default function AuthWalletConnection({ onConnect }: AuthWalletConnection
       return
     }
 
-    if (!window.ethereum) {
+    if (!(window as any).ethereum) {
       setError('Please install MetaMask or another Web3 wallet')
       return
     }
@@ -112,7 +112,7 @@ export default function AuthWalletConnection({ onConnect }: AuthWalletConnection
     setError(null)
     
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum)
+      const provider = new ethers.BrowserProvider((window as any).ethereum)
       await provider.send("eth_requestAccounts", [])
       const signer = await provider.getSigner()
       const address = await signer.getAddress()

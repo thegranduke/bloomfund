@@ -85,38 +85,25 @@ export default function AdminDashboard() {
   async function approveClaim(claim: any, payoutAmount: number) {
     setIsLoading(true)
     try {
-      // Update database
-      const { error } = await supabase
-        .from('claims')
-        .update({
-          status: 'approved',
-          payout_amount: payoutAmount,
-          claim_start_date: new Date().toISOString()
+      const response = await fetch('/api/admin/approve-claim', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          claimId: claim.id,
+          payoutAmount: payoutAmount
         })
-        .eq('id', claim.id)
+      })
 
-      if (error) throw error
-
-      // Call smart contract
-      const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_BLOCKDAG_RPC_URL)
-      const adminWallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider)
+      const result = await response.json()
       
-      const contract = new ethers.Contract(
-        process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!,
-        ['function approveClaim(uint256 claimId, uint256 payoutAmount) external'],
-        adminWallet
-      )
-
-      // Convert payout amount to wei (assuming 1 Rand = 0.001 BDG for testing)
-      const payoutAmountWei = ethers.parseEther((payoutAmount * 0.001).toString())
-      
-      // Use claim ID 1 for testing (in production, this would be properly tracked)
-      const claimId = 1
-      const tx = await contract.approveClaim(claimId, payoutAmountWei)
-      await tx.wait()
-
-      alert('✅ Claim approved successfully!')
-      loadData()
+      if (result.success) {
+        alert('✅ Claim approved successfully!')
+        loadData()
+      } else {
+        alert('Claim approval failed: ' + result.error)
+      }
       
     } catch (error: any) {
       alert('Claim approval failed: ' + error.message)
@@ -148,31 +135,24 @@ export default function AdminDashboard() {
   async function processPayout(claim: any) {
     setIsLoading(true)
     try {
-      const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_BLOCKDAG_RPC_URL)
-      const adminWallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider)
-      
-      const contract = new ethers.Contract(
-        process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!,
-        ['function processInstallment(uint256 claimId) external'],
-        adminWallet
-      )
-
-      // Use claim ID 1 for testing (in production, this would be properly tracked)
-      const claimId = 1
-      const tx = await contract.processInstallment(claimId)
-      await tx.wait()
-
-      // Update database
-      await supabase
-        .from('claims')
-        .update({
-          installments_paid: claim.installments_paid + 1,
-          status: claim.installments_paid + 1 >= 4 ? 'completed' : 'approved'
+      const response = await fetch('/api/admin/process-payout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          claimId: claim.id
         })
-        .eq('id', claim.id)
+      })
 
-      alert('✅ Payout processed!')
-      loadData()
+      const result = await response.json()
+      
+      if (result.success) {
+        alert('✅ Payout processed!')
+        loadData()
+      } else {
+        alert('Payout failed: ' + result.error)
+      }
       
     } catch (error: any) {
       alert('Payout failed: ' + error.message)
@@ -213,18 +193,25 @@ export default function AdminDashboard() {
   async function manualPayment(userAddress: string, amount: string) {
     setIsLoading(true)
     try {
-      const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_BLOCKDAG_RPC_URL)
-      const adminWallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider)
-      
-      const amountWei = ethers.parseEther(amount)
-      
-      const tx = await adminWallet.sendTransaction({
-        to: userAddress,
-        value: amountWei
+      const response = await fetch('/api/admin/manual-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userAddress: userAddress,
+          amount: amount
+        })
       })
+
+      const result = await response.json()
       
-      await tx.wait()
-      alert(`✅ Sent ${amount} BDG to ${userAddress}!\nTX: ${tx.hash}`)
+      if (result.success) {
+        alert(`✅ ${result.message}\nTX: ${result.transactionHash}`)
+      } else {
+        alert('Payment failed: ' + result.error)
+      }
+      
     } catch (error: any) {
       alert('Payment failed: ' + error.message)
     } finally {
@@ -296,7 +283,7 @@ export default function AdminDashboard() {
       const policy = await contract.getUserPolicy(user.wallet_address)
       const tierFee = ethers.parseEther(contractStats.tiers.find((t: any) => t.id === user.tier)?.monthlyFee || '0.05')
       
-      return policy.totalPaid > 0n ? Number(policy.totalPaid / tierFee) : 0
+      return policy.totalPaid > BigInt(0) ? Number(policy.totalPaid / tierFee) : 0
     } catch (error) {
       return 0
     }
