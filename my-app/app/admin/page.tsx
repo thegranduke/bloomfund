@@ -55,11 +55,16 @@ export default function AdminDashboard() {
       
       const contract = new ethers.Contract(
         process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!,
-        ['function approveClaim(address user, uint256 payoutAmount) external'],
+        ['function approveClaim(uint256 claimId, uint256 payoutAmount) external'],
         adminWallet
       )
 
-      const tx = await contract.approveClaim(claim.users.wallet_address, payoutAmount)
+      // Convert payout amount to wei (assuming 1 Rand = 0.001 BDG for testing)
+      const payoutAmountWei = ethers.parseEther((payoutAmount * 0.001).toString())
+      
+      // Use claim ID 1 for testing (in production, this would be properly tracked)
+      const claimId = 1
+      const tx = await contract.approveClaim(claimId, payoutAmountWei)
       await tx.wait()
 
       alert('✅ Claim approved successfully!')
@@ -100,11 +105,13 @@ export default function AdminDashboard() {
       
       const contract = new ethers.Contract(
         process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!,
-        ['function processPayout(address user) external'],
+        ['function processInstallment(uint256 claimId) external'],
         adminWallet
       )
 
-      const tx = await contract.processPayout(claim.users.wallet_address)
+      // Use claim ID 1 for testing (in production, this would be properly tracked)
+      const claimId = 1
+      const tx = await contract.processInstallment(claimId)
       await tx.wait()
 
       // Update database

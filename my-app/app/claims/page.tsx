@@ -1,17 +1,27 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { ethers } from 'ethers'
 import { supabase } from '../../lib/supabase'
+import { checkClaimEligibility, type ClaimEligibility } from '../../lib/claimEligibility'
 
 export default function ClaimsPage() {
   const [user, setUser] = useState<any>(null)
   const [userRecord, setUserRecord] = useState<any>(null)
   const [claims, setClaims] = useState<any[]>([])
+  const [eligibility, setEligibility] = useState<ClaimEligibility | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isCheckingEligibility, setIsCheckingEligibility] = useState(false)
 
   useEffect(() => {
     checkUser()
   }, [])
+
+  useEffect(() => {
+    if (userRecord) {
+      checkContractEligibility()
+    }
+  }, [userRecord])
 
   async function checkUser() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -38,18 +48,56 @@ export default function ClaimsPage() {
     }
   }
 
+  async function checkContractEligibility() {
+    if (!userRecord) return
+    
+    setIsCheckingEligibility(true)
+    try {
+      // Connect to contract for real-time eligibility check
+      const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_BLOCKDAG_RPC_URL)
+      const contract = new ethers.Contract(
+        process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!,
+        [
+          'function getUserPolicy(address user) external view returns (uint256 tier, uint256 lastPaidAt, uint256 totalPaid, bool active)',
+          'function getTier(uint256 tierId) external view returns (uint256 monthlyFee, uint256 payoutAmount, bool active)'
+        ],
+        provider
+      )
+      
+      // Get tier monthly fee for calculation
+      const tier = await contract.getTier(userRecord.tier)
+      
+      // Check eligibility using contract data
+      const eligibilityResult = await checkClaimEligibility(
+        contract,
+        userRecord.wallet_address,
+        tier.monthlyFee
+      )
+      
+      setEligibility(eligibilityResult)
+    } catch (error) {
+      console.error('Error checking contract eligibility:', error)
+      setEligibility({
+        eligible: false,
+        reason: 'Unable to check contract status',
+        monthsPaid: 0,
+        totalPaid: '0',
+        requiredMonths: 6
+      })
+    } finally {
+      setIsCheckingEligibility(false)
+    }
+  }
+
   async function submitClaim() {
     if (!user || !userRecord) {
       alert('Please complete onboarding first')
       return
     }
 
-    // Check eligibility (6 months of payments)
-    const sixMonthsAgo = new Date()
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-    
-    if (!userRecord.last_paid_at || new Date(userRecord.last_paid_at) > sixMonthsAgo) {
-      alert('You need to pay premiums for at least 6 months before claiming')
+    // Use contract-based eligibility check
+    if (!eligibility?.eligible) {
+      alert(`Cannot submit claim: ${eligibility?.reason || 'Not eligible'}`)
       return
     }
 
@@ -65,6 +113,7 @@ export default function ClaimsPage() {
 
     setIsLoading(true)
     try {
+      // Submit to database
       const { error } = await supabase
         .from('claims')
         .insert({
@@ -113,6 +162,46 @@ export default function ClaimsPage() {
           </div>
         ) : (
           <p>Loading your coverage information...</p>
+        )}
+      </div>
+
+      {/* Contract-based Eligibility Status */}
+      <div className="mb-8">
+        <h2 className="text-xl font-bold mb-4">Claim Eligibility Status</h2>
+        {isCheckingEligibility ? (
+          <div className="bg-yellow-50 p-4 rounded-lg">
+            <p>🔄 Checking eligibility with smart contract...</p>
+          </div>
+        ) : eligibility ? (
+          <div className={`p-4 rounded-lg ${eligibility.eligible ? 'bg-green-50' : 'bg-red-50'}`}>
+            <div className="flex items-center mb-2">
+              <span className={`text-2xl mr-2 ${eligibility.eligible ? 'text-green-600' : 'text-red-600'}`}>
+                {eligibility.eligible ? '✅' : '❌'}
+              </span>
+              <span className={`font-bold ${eligibility.eligible ? 'text-green-800' : 'text-red-800'}`}>
+                {eligibility.eligible ? 'Eligible for Claims' : 'Not Eligible'}
+              </span>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p><strong>Months Paid:</strong> {eligibility.monthsPaid}/{eligibility.requiredMonths}</p>
+                <p><strong>Total Paid (Contract):</strong> {eligibility.totalPaid} BDG</p>
+              </div>
+              <div>
+                {eligibility.lastPayment && (
+                  <p><strong>Last Payment:</strong> {eligibility.lastPayment.toLocaleDateString()}</p>
+                )}
+                {!eligibility.eligible && eligibility.reason && (
+                  <p className="text-red-700"><strong>Reason:</strong> {eligibility.reason}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <p>Loading eligibility status...</p>
+          </div>
         )}
       </div>
 
